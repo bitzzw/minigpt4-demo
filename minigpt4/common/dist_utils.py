@@ -1,4 +1,12 @@
+import os
+
+import torch
 import torch.distributed as dist
+import timm.models.hub as timm_hub
+
+
+def is_main_process():
+    return get_rank() == 0
 
 
 def is_dist_avail_and_initialized():
