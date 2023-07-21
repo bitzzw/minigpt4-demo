@@ -1,14 +1,5 @@
-from minigpt4.processors.blip_processors import (
-    Blip2ImageTrainProcessor,
-    Blip2ImageEvalProcessor,
-    BlipCaptionProcessor,
-)
-from minigpt4.processors.base_processor import BaseProcessor
-
+from minigpt4.processor.blip_processor import Blip2ImageEvalProcessor
 
 __all__ = [
-    "BaseProcessor",
-    "Blip2ImageTrainProcessor",
     "Blip2ImageEvalProcessor",
-    "BlipCaptionProcessor",
 ]
