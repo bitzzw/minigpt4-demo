@@ -1,19 +1,13 @@
 import dataclasses
-from enum import auto, Enum
+from enum import auto
 from typing import List, Any
 
 from PIL import Image
 
 import torch
 from transformers import StoppingCriteria, StoppingCriteriaList
-
-
-class SeparatorStyle(Enum):
-    """Different separator style."""
-    SINGLE = auto()
-    TWO = auto()
     
-    
+
 class StoppingCriteriaSub(StoppingCriteria):
     def __init__(self, stops=[], encounters=1):
         super().__init__()
@@ -32,34 +26,16 @@ class PromptMessageKeep:
     system: str
     roles: List[str]
     messages: List[List[str]]
-    offset: int
-    sep_style: SeparatorStyle = SeparatorStyle.SINGLE
     sep: str = "###"
-    sep2: str = None
-
-    skip_next: bool = False
-    conv_id: Any = None
 
     def get_prompt(self):
-        if self.sep_style == SeparatorStyle.SINGLE:
-            ret = self.system + self.sep
-            for role, message in self.messages:
-                if message:
-                    ret += role + ": " + message + self.sep
-                else:
-                    ret += role + ":"
-            return ret
-        elif self.sep_style == SeparatorStyle.TWO:
-            seps = [self.sep, self.sep2]
-            ret = self.system + seps[0]
-            for i, (role, message) in enumerate(self.messages):
-                if message:
-                    ret += role + ": " + message + seps[i % 2]
-                else:
-                    ret += role + ":"
-            return ret
-        else:
-            raise ValueError(f"Invalid style: {self.sep_style}")
+        ret = self.system + self.sep
+        for role, message in self.messages:
+            if message:
+                ret += role + ": " + message + self.sep
+            else:
+                ret += role + ":"
+        return ret
 
     def append_message(self, role, message):
         self.messages.append([role, message])
@@ -69,11 +45,8 @@ class PromptMessageKeep:
             system=self.system,
             roles=self.roles,
             messages=[[x, y] for x, y in self.messages],
-            offset=self.offset,
-            sep_style=self.sep_style,
             sep=self.sep,
-            sep2=self.sep2,
-            conv_id=self.conv_id)
+            )
 
 
 Prompt_Message_Keep = PromptMessageKeep(
@@ -81,8 +54,6 @@ Prompt_Message_Keep = PromptMessageKeep(
            "You will be able to see the image once I provide it to you. Please answer my questions.",
     roles=("Human", "Assistant"),
     messages=[],
-    offset=2,
-    sep_style=SeparatorStyle.SINGLE,
     sep="###",
 )
 
@@ -105,6 +76,7 @@ class Conversation:
 
     def answer(self, conv, img_list, max_new_tokens=300, num_beams=1, min_length=1, top_p=0.9,
                repetition_penalty=1.0, length_penalty=1, temperature=1.0, max_length=2000):
+        
         conv.append_message(conv.roles[1], None)
         embs = self.get_context_emb(conv, img_list)
 
@@ -113,7 +85,6 @@ class Conversation:
             print('Warning: The number of tokens in current conversation exceeds the max length. '
                   'The model will not see the contexts outside the range.')
         begin_idx = max(0, current_max_len - max_length)
-
         embs = embs[:, begin_idx:]
         
         outputs = self.model.llama_model.generate(
@@ -129,10 +100,9 @@ class Conversation:
             temperature=temperature,
         )
         output_token = outputs[0]
-        if output_token[0] == 0:  # the model might output a unknow token <unk> at the beginning. remove it
+        if output_token[0] == 0 or utput_token[0] == 1:  # the model might output a unknow token <unk> <s> at the beginning. remove it
             output_token = output_token[1:]
-        if output_token[0] == 1:  # some users find that there is a start token <s> at the beginning. remove it
-            output_token = output_token[1:]
+            
         output_text = self.model.llama_tokenizer.decode(output_token, add_special_tokens=False)
         output_text = output_text.split('###')[0]  # remove the stop sign '###'
         output_text = output_text.split('Assistant:')[-1].strip()
@@ -172,4 +142,3 @@ class Conversation:
         mixed_embs = [emb for pair in zip(seg_embs[:-1], img_list) for emb in pair] + [seg_embs[-1]]
         mixed_embs = torch.cat(mixed_embs, dim=1)
         return mixed_embs
-        
